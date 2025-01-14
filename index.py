@@ -3,6 +3,10 @@ from discord.ext import commands
 import os
 from dotenv import load_dotenv
 import asyncio
+from flask import Flask
+
+
+app = Flask(__name__)
 
 # Cargar variables de entorno
 load_dotenv()
@@ -45,7 +49,8 @@ async def load():
             await bot.load_extension(f'cogs.{filename[:-3]}')
             print(f'Loaded {filename[:-3]}')
 
-
+# Obtener el puerto desde las variables de entorno o asignar un predeterminado
+PORT = int(os.getenv("PORT", 8080))
 
 # Función principal para cargar el bot
 async def main():
@@ -55,3 +60,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    app.run(host="0.0.0.0", port=PORT)

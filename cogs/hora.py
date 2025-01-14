@@ -14,7 +14,7 @@ timezones = {
 }
 
 # Emoji personalizado para separar los resultados
-line3Emoji = '<:line3:1327360293101109320>'  # Asegúrate de que este sea un emoji válido
+line3Emoji = '<:line3:1328869908188237884>'  # Asegúrate de que este sea un emoji válido
 
 class Hora(commands.Cog):
     def __init__(self, bot):
