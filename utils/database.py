@@ -1,26 +1,13 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import firebase_admin
 from firebase_admin import credentials, firestore
 from dotenv import load_dotenv
 
+load_dotenv()
+
 class DatabaseManager:
-    _instance = None
-    _initialized = False
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(DatabaseManager, cls).__new__(cls)
-        return cls._instance
-
     def __init__(self):
-        if not self._initialized:
-            self._initialized = True
-            self._initialize_firebase()
-
-    def _initialize_firebase(self):
-        load_dotenv()
-        
         firebase_credentials = os.getenv('FIREBASE_CREDENTIALS')
         
         if not firebase_credentials:
@@ -33,10 +20,19 @@ class DatabaseManager:
         self.db = firestore.client()
         self.apiKeys = self.db.collection('api_keys')
         self.reminders = self.db.collection('reminders')
-
+    
+    async def connect(self):
+        try:
+            doc_ref = self.db.collection('test').document('ping')
+            doc_ref.set({'message': 'ping'})
+            print('✅ Conectado a Firebase Firestore')
+            return True
+        except Exception as error:
+            print('❌ Error de conexión Firestore:', str(error))
+            return False
+    
     async def setApiKey(self, userId, apiKey):
         try:
-            # Establecer o actualizar la API Key en Firestore
             doc_ref = self.apiKeys.document(str(userId))
             doc_ref.set({
                 'api_key': apiKey,
@@ -50,7 +46,6 @@ class DatabaseManager:
     
     async def getApiKey(self, userId):
         try:
-            # Obtener la API Key de Firestore
             doc_ref = self.apiKeys.document(str(userId))
             doc = doc_ref.get()
             print(f"🔍 Buscando API key para usuario {userId}: {'Encontrada' if doc.exists else 'No encontrada'}")
@@ -61,7 +56,6 @@ class DatabaseManager:
     
     async def deleteApiKey(self, userId):
         try:
-            # Eliminar la API Key de Firestore
             doc_ref = self.apiKeys.document(str(userId))
             doc_ref.delete()
             print(f"✅ API Key eliminada para usuario {userId}")
@@ -72,7 +66,6 @@ class DatabaseManager:
     
     async def hasApiKey(self, userId):
         try:
-            # Verificar si el usuario tiene una API Key
             doc_ref = self.apiKeys.document(str(userId))
             doc = doc_ref.get()
             return doc.exists
@@ -80,70 +73,76 @@ class DatabaseManager:
             print('❌ Error verificando API key:', str(error))
             return False
     
-    async def connect(self):
+    async def setReminder(self, userId, reminderData):
         try:
-            doc_ref = self.db.collection('test').document('ping')
-            doc_ref.set({'message': 'ping'})
-            print('✅ Conectado a Firebase Firestore')
+            reminder_ref = self.reminders.document(str(userId))
+            reminder_ref.set(reminderData)
+            
+            doc = reminder_ref.get()
+            if doc.exists:
+                print(f"✅ Recordatorio guardado correctamente para {userId}: {doc.to_dict()}")
+            else:
+                print(f"❌ El recordatorio no se guardó correctamente para {userId}")
+            
             return True
         except Exception as error:
-            print('❌ Error de conexión Firestore:', str(error))
+            print(f"❌ Error guardando el recordatorio: {str(error)}")
             return False
-
-    def set_reminder(self, reminder_data):
-        """Método sincrónico para guardar recordatorio"""
+    
+    async def getReminder(self, userId):
         try:
-            # Asegurarnos de que 'time' sea un string ISO
-            if isinstance(reminder_data['time'], datetime):
-                reminder_data['time'] = reminder_data['time'].isoformat()
-            
-            doc_id = f"{reminder_data['user_id']}_{int(datetime.fromisoformat(reminder_data['time']).timestamp())}"
-            
-            # Crear una copia limpia de los datos
-            clean_data = {
-                'user_id': str(reminder_data['user_id']),
-                'channel_id': str(reminder_data['channel_id']),
-                'target_id': str(reminder_data['target_id']) if reminder_data.get('target_id') else None,
-                'message': reminder_data['message'],
-                'time': reminder_data['time'],
-                'original_message': reminder_data.get('original_message', '')
-            }
-            
-            self.reminders.document(doc_id).set(clean_data)
-            return True
-        except Exception as e:
-            print(f"Error guardando recordatorio en Firebase: {e}")
-            return False
-
-    def delete_reminder(self, reminder_data):
-        """Método sincrónico para eliminar recordatorio"""
-        try:
-            time_value = reminder_data['time']
-            if isinstance(time_value, datetime):
-                timestamp = time_value.timestamp()
+            doc_ref = self.reminders.document(str(userId))
+            doc = doc_ref.get()
+            if doc.exists:
+                print(f"🔍 Recordatorio encontrado para {userId}: {doc.to_dict()}")
+                return doc.to_dict()
             else:
-                timestamp = datetime.fromisoformat(time_value).timestamp()
-                
-            doc_id = f"{reminder_data['user_id']}_{int(timestamp)}"
-            self.reminders.document(doc_id).delete()
+                print(f"❌ No se encontró un recordatorio para {userId}")
+                return None
+        except Exception as error:
+            print(f"❌ Error obteniendo el recordatorio: {str(error)}")
+            return None
+    
+    async def deleteReminder(self, userId):
+        try:
+            doc_ref = self.reminders.document(str(userId))
+            doc_ref.delete()
+            print(f"✅ Recordatorio eliminado para {userId}")
             return True
-        except Exception as e:
-            print(f"Error eliminando recordatorio de Firebase: {e}")
+        except Exception as error:
+            print(f"❌ Error al eliminar el recordatorio: {str(error)}")
             return False
-
-    def get_all_reminders(self):
-        """Método sincrónico para obtener todos los recordatorios"""
+    
+    async def checkRemindersCollection(self):
         try:
             docs = self.reminders.stream()
-            reminders = []
             for doc in docs:
-                data = doc.to_dict()
-                # No convertir a datetime aquí, lo dejamos como string ISO
-                reminders.append(data)
-            return reminders
-        except Exception as e:
-            print(f"Error obteniendo recordatorios de Firebase: {e}")
+                print(f"Documento encontrado en reminders: {doc.id} => {doc.to_dict()}")
+        except Exception as error:
+            print(f"❌ Error al verificar colección reminders: {str(error)}")
+    
+    async def get_all_reminders(self):
+        """
+        Obtiene todos los recordatorios almacenados en la base de datos.
+        
+        Returns:
+            list: Lista de diccionarios, donde cada diccionario contiene los datos de un recordatorio
+                  y su ID de usuario correspondiente.
+        """
+        try:
+            reminders_list = []
+            docs = self.reminders.stream()
+            
+            for doc in docs:
+                reminder_data = doc.to_dict()
+                reminder_data['userId'] = doc.id  # Añadir el ID del documento (userId) al diccionario
+                reminders_list.append(reminder_data)
+            
+            print(f"✅ Se obtuvieron {len(reminders_list)} recordatorios")
+            return reminders_list
+        except Exception as error:
+            print(f"❌ Error obteniendo todos los recordatorios: {str(error)}")
             return []
 
-# Instancia global del gestor de base de datos
+# Instancia global del manejador de base de datos
 dbManager = DatabaseManager()

@@ -31,33 +31,47 @@ class TimeConverter:
         return datetime.timedelta(**params)
 
 class Reminders(commands.Cog):
+    """Un cog para manejar recordatorios"""
+
     def __init__(self, bot):
         self.bot = bot
         self.reminders = []
         self.check_reminders.start()
+        print("✅ Inicializado Reminders Cog")
 
     async def cog_load(self):
         """Este método se llama cuando el cog es cargado"""
+        print("🔄 Cargando recordatorios...")
         await self.load_reminders()
+        print("✅ Recordatorios cargados")
 
     def cog_unload(self):
+        """Este método se llama cuando el cog es descargado"""
+        print("🔄 Descargando Reminders Cog")
         self.check_reminders.cancel()
 
     async def load_reminders(self):
         try:
-            reminders_data = dbManager.get_all_reminders()  # Obtiene de Firebase
+            reminders_data = await dbManager.get_all_reminders()
             self.reminders = []
+            
             for reminder_data in reminders_data:
-                 self.reminders.append({
-                'user_id': int(reminder_data['user_id']),
-                'channel_id': int(reminder_data['channel_id']),
-                'target_id': int(reminder_data.get('target_id')) if reminder_data.get('target_id') else None,
-                'message': reminder_data['message'],
-                'time': datetime.fromisoformat(reminder_data['time']),
-                'original_message': reminder_data.get('original_message', '')
-            })
+                try:
+                    self.reminders.append({
+                        'user_id': int(reminder_data['user_id']),
+                        'channel_id': int(reminder_data['channel_id']),
+                        'target_id': int(reminder_data.get('target_id')) if reminder_data.get('target_id') else None,
+                        'message': reminder_data['message'],
+                        'time': datetime.datetime.fromisoformat(reminder_data['time']),
+                        'original_message': reminder_data.get('original_message', '')
+                    })
+                except (ValueError, KeyError) as e:
+                    print(f"❌ Error procesando datos del recordatorio: {e}")
+                    continue
+                    
+            print(f"✅ Cargados {len(self.reminders)} recordatorios exitosamente")
         except Exception as e:
-            print(f"Error cargando recordatorios de Firebase: {e}")
+            print(f"❌ Error cargando recordatorios de Firebase: {e}")
             self.reminders = []
 
     async def save_reminder(self, reminder):
@@ -67,22 +81,20 @@ class Reminders(commands.Cog):
                 'channel_id': str(reminder['channel_id']),
                 'target_id': str(reminder['target_id']) if reminder.get('target_id') else None,
                 'message': reminder['message'],
-                'time': reminder['time'].isoformat(),  # Convertimos el datetime a string ISO
+                'time': reminder['time'].isoformat(),
                 'original_message': reminder.get('original_message', '')
-            }   
+            }
             
-            return dbManager.set_reminder(reminder_data)
+            return await dbManager.setReminder(str(reminder['user_id']), reminder_data)
         except Exception as e:
-            print(f"Error guardando recordatorio en Firebase: {e}")
+            print(f"❌ Error guardando recordatorio en Firebase: {e}")
             return False
-        
-        
 
     async def delete_reminder(self, reminder):
         try:
-            return dbManager.delete_reminder(reminder)
+            return await dbManager.deleteReminder(str(reminder['user_id']))
         except Exception as e:
-            print(f"Error eliminando recordatorio de Firebase: {e}")
+            print(f"❌ Error eliminando recordatorio de Firebase: {e}")
             return False
 
     @tasks.loop(seconds=30)
@@ -93,38 +105,39 @@ class Reminders(commands.Cog):
         for reminder in self.reminders:
             if reminder['time'] <= now:
                 user = self.bot.get_user(reminder['user_id'])
-            if user:
-                embed = discord.Embed(
-                    title="Reminder",
-                    color=discord.Color.blue(),
-                )
-                embed.add_field(
-                    name="Message",
-                    value=reminder['message'],
-                    inline=False
-                )
-                embed.add_field(
-                    name="Created at",
-                    value=reminder['time'].strftime('%Y-%m-%d %H:%M:%S'),
-                    inline=False
-                )
-                embed.add_field(
-                    name="By",
-                    value=f"<@{reminder['user_id']}>",
-                    inline=False
-                )
-                try:
-                    await user.send(embed=embed)
-                except discord.HTTPException:
-                    pass
-            reminders_to_remove.append(reminder)
+                if user:
+                    embed = discord.Embed(
+                        title="Reminder",
+                        color=discord.Color.blue(),
+                    )
+                    embed.add_field(
+                        name="Message",
+                        value=reminder['message'],
+                        inline=False
+                    )
+                    embed.add_field(
+                        name="Created at",
+                        value=reminder['time'].strftime('%Y-%m-%d %H:%M:%S'),
+                        inline=False
+                    )
+                    embed.add_field(
+                        name="By",
+                        value=f"<@{reminder['user_id']}>",
+                        inline=False
+                    )
+                    try:
+                        await user.send(embed=embed)
+                    except discord.HTTPException:
+                        pass
+                reminders_to_remove.append(reminder)
 
         for reminder in reminders_to_remove:
             self.reminders.remove(reminder)
-            dbManager.delete_reminder(reminder)
+            await self.delete_reminder(reminder)
 
-    @commands.command(name='remind')
-    async def remind(self, ctx, *, content: str):
+    @commands.group(name='reminder', aliases=['remind'], invoke_without_command=True)
+    async def reminder(self, ctx, *, content: str):
+        """Comando para establecer un recordatorio"""
         try:
             target_id, channel_id, message, time_delta = await self.parse_remind_command(ctx, content)
             reminder_time = datetime.datetime.now() + time_delta
@@ -148,30 +161,31 @@ class Reminders(commands.Cog):
                 )
                 embed.add_field(
                     name=" ",
-                    value=f"⏰ I will remind <@{ctx.author.id}> **{message}** "
+                    value=f"⏰ Te recordaré **{message}** "
                           f"<t:{int(reminder_time.timestamp())}:R> (<t:{int(reminder_time.timestamp())}:f>)",
                     inline=False
                 )
                 await ctx.send(embed=embed)
             else:
-                await ctx.send("❌ There was an error saving the reminder.")
+                await ctx.send("❌ Hubo un error al guardar el recordatorio.")
 
         except ValueError as e:
             await ctx.send(f"❌ Error: {str(e)}")
         except Exception as e:
-            await ctx.send("❌ An error occurred while setting the reminder.")
+            await ctx.send("❌ Ocurrió un error al establecer el recordatorio.")
             print(f"Error setting reminder: {e}")
 
-    @commands.command(name='reminders')
+    @commands.command(name='reminders', aliases=['listreminders', 'myreminders'])
     async def list_reminders(self, ctx):
+        """Muestra todos tus recordatorios activos"""
         user_reminders = [r for r in self.reminders if r['user_id'] == ctx.author.id]
         
         if not user_reminders:
-            await ctx.send("You have no active reminders.")
+            await ctx.send("No tienes recordatorios activos.")
             return
 
         embed = discord.Embed(
-            title="📝 Your Reminders",
+            title="📝 Tus Recordatorios",
             color=discord.Color.blue(),
             timestamp=datetime.datetime.now()
         )
@@ -183,25 +197,26 @@ class Reminders(commands.Cog):
             time_str = f"{hours}h {minutes}m {seconds}s"
             
             channel = self.bot.get_channel(reminder['channel_id'])
-            channel_str = channel.mention if channel else "Unknown channel"
+            channel_str = channel.mention if channel else "Canal desconocido"
 
             embed.add_field(
-                    name=f"Reminder #{i}",
-                    value=f"**Message:** {reminder['message']}\n"
-                        f"**Channel:** {channel_str}\n"
-                        f"**Time left:** {time_str}\n"
-                        f"**Scheduled time:** {reminder['time'].strftime('%Y-%m-%d %H:%M:%S')}",
+                    name=f"Recordatorio #{i}",
+                    value=f"**Mensaje:** {reminder['message']}\n"
+                        f"**Canal:** {channel_str}\n"
+                        f"**Tiempo restante:** {time_str}\n"
+                        f"**Hora programada:** {reminder['time'].strftime('%Y-%m-%d %H:%M:%S')}",
                     inline=False
             )
 
         await ctx.send(embed=embed)
 
-    @commands.command(name='remove')
+    @commands.command(name='removereminder', aliases=['remove', 'delreminder'])
     async def remove_reminder(self, ctx, index: int):
+        """Elimina un recordatorio específico por su número"""
         user_reminders = [r for r in self.reminders if r['user_id'] == ctx.author.id]
         
         if not user_reminders or index > len(user_reminders) or index < 1:
-            await ctx.send("❌ Invalid reminder index.")
+            await ctx.send("❌ Índice de recordatorio inválido.")
             return
 
         reminder_to_remove = user_reminders[index - 1]
@@ -209,16 +224,17 @@ class Reminders(commands.Cog):
         success = await self.delete_reminder(reminder_to_remove)
         
         if success:
-            await ctx.send(f"✅ Reminder #{index} has been deleted.")
+            await ctx.send(f"✅ Recordatorio #{index} ha sido eliminado.")
         else:
-            await ctx.send("❌ There was an error deleting the reminder.")
+            await ctx.send("❌ Hubo un error al eliminar el recordatorio.")
 
-    @commands.command(name='removeall')
+    @commands.command(name='removeall', aliases=['clearreminders'])
     async def remove_all_reminders(self, ctx):
+        """Elimina todos tus recordatorios activos"""
         user_reminders = [r for r in self.reminders if r['user_id'] == ctx.author.id]
 
         if not user_reminders:
-            await ctx.send("You have no active reminders to delete.")
+            await ctx.send("No tienes recordatorios activos para eliminar.")
             return
 
         success = True
@@ -228,9 +244,9 @@ class Reminders(commands.Cog):
                 success = False
 
         if success:
-            await ctx.send("✅ All your reminders have been deleted.")
+            await ctx.send("✅ Todos tus recordatorios han sido eliminados.")
         else:
-            await ctx.send("⚠️ Some reminders could not be completely deleted.")
+            await ctx.send("⚠️ Algunos recordatorios no pudieron ser eliminados completamente.")
 
     async def parse_remind_command(self, ctx, content: str) -> Tuple[Optional[int], Optional[int], str, datetime.timedelta]:
         content = content.strip()
@@ -249,6 +265,9 @@ class Reminders(commands.Cog):
             content = channel_match.group(2)
 
         words = content.split()
+        if not words:
+            raise ValueError("Debes proporcionar un tiempo y un mensaje para el recordatorio.")
+            
         time_str = words[0]
         message = ' '.join(words[1:])
         
@@ -271,7 +290,9 @@ class Reminders(commands.Cog):
 
         return target_id, channel_id, message, time_delta
 
-async def setup(bot: commands.Bot):
+async def setup(bot):
+    """Función para configurar el cog"""
+    print("🔄 Iniciando setup del Reminders Cog...")
     if await dbManager.connect():
         await bot.add_cog(Reminders(bot))
         print("✅ Cog de Recordatorios cargado exitosamente")
