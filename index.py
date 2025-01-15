@@ -25,11 +25,8 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-# Importar el manager de base de datos desde utils/database.py
-from utils.database import DatabaseManager
-
-# Inicializar el DatabaseManager
-db_manager = DatabaseManager()
+# Importar el manager de base de datos
+from utils.database import dbManager
 
 # Configuración del bot
 bot = commands.Bot(
@@ -40,27 +37,29 @@ bot = commands.Bot(
 )
 
 @bot.event
-async def setup_hook():
-    bot.remove_command('help')
-    # Cargar las extensiones
-    await bot.load_extension('utils.help')
-
-@bot.event
 async def on_ready():
     print(f'Bot is ready: {bot.user.name}')
-    
+    # Esperar un momento para asegurarse de que el bot esté completamente listo
+    await asyncio.sleep(1)
     try:
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} command(s)")
     except Exception as e:
-        print(e)
+        print(f"Error al sincronizar comandos: {e}")
 
 # Carga los cogs (comandos)
 async def load():
+    bot.remove_command('help')
+    # Cargar las extensiones
+    await bot.load_extension('utils.help')
+    
     for filename in os.listdir('./cogs'):
         if filename.endswith('.py'):
-            await bot.load_extension(f'cogs.{filename[:-3]}')
-            print(f'Loaded {filename[:-3]}')
+            try:
+                await bot.load_extension(f'cogs.{filename[:-3]}')
+                print(f'Loaded {filename[:-3]}')
+            except Exception as e:
+                print(f'Failed to load extension {filename}: {e}')
 
 # Función principal para cargar el bot
 async def main():

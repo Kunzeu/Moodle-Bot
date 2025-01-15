@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 class DatabaseManager:
     _instance = None
     _initialized = False
+    _connected = False
 
     def __new__(cls):
         if cls._instance is None:
@@ -20,41 +21,34 @@ class DatabaseManager:
         load_dotenv()
         
         # Obtener las credenciales individuales desde variables de entorno
-        env_vars = {
+        self.env_vars = {
             'FIREBASE_PROJECT_ID': os.getenv('FIREBASE_PROJECT_ID'),
             'FIREBASE_PRIVATE_KEY': os.getenv('FIREBASE_PRIVATE_KEY'),
             'FIREBASE_CLIENT_EMAIL': os.getenv('FIREBASE_CLIENT_EMAIL')
         }
-        
-        # Verificar cada variable de entorno e imprimir información de depuración
-        for var_name, value in env_vars.items():
-            if not value:
-                print(f"⚠️ No se encontró la variable de entorno: {var_name}")
-            else:
-                print(f"✅ Variable {var_name} encontrada")
-        
-        cred_dict = {
-            "type": "service_account",
-            "project_id": env_vars['FIREBASE_PROJECT_ID'],
-            "private_key": env_vars['FIREBASE_PRIVATE_KEY'].replace('\\n', '\n') if env_vars['FIREBASE_PRIVATE_KEY'] else None,
-            "client_email": env_vars['FIREBASE_CLIENT_EMAIL'],
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        }
-        
-        # Verificar que todas las credenciales necesarias estén presentes
-        missing_fields = [key for key, value in env_vars.items() if not value]
-        
-        if missing_fields:
-            error_msg = "\n".join([
-                "🚫 Error: Faltan variables de entorno requeridas",
-                "Las siguientes variables no están configuradas:",
-                ", ".join(missing_fields)
-            ])
-            raise ValueError(error_msg)
-            
+
+    async def connect(self):
+        """Conectar a Firebase de manera asíncrona."""
+        if self._connected:
+            return True
+
         try:
+            # Verificar variables de entorno
+            missing_fields = [key for key, value in self.env_vars.items() if not value]
+            if missing_fields:
+                print(f"⚠️ Faltan variables de entorno: {', '.join(missing_fields)}")
+                return False
+
+            cred_dict = {
+                "type": "service_account",
+                "project_id": self.env_vars['FIREBASE_PROJECT_ID'],
+                "private_key": self.env_vars['FIREBASE_PRIVATE_KEY'].replace('\\n', '\n'),
+                "client_email": self.env_vars['FIREBASE_CLIENT_EMAIL'],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            }
+
             # Intentar obtener la app existente, si no existe, crear una nueva
             try:
                 self.app = get_app()
@@ -63,14 +57,20 @@ class DatabaseManager:
                 self.app = initialize_app(self.cred)
             
             self.db = firestore.client()
+            self._connected = True
             print("✅ Conexión con Firebase establecida exitosamente")
+            return True
+
         except Exception as e:
-            error_msg = f"🚫 Error al inicializar Firebase: {str(e)}"
-            print(error_msg)
-            raise Exception(error_msg)
+            print(f"🚫 Error al conectar con Firebase: {str(e)}")
+            return False
 
     async def get_document(self, collection, document_id):
         """Recuperar un documento de Firestore."""
+        if not self._connected:
+            if not await self.connect():
+                return None
+
         try:
             doc_ref = self.db.collection(collection).document(document_id)
             doc = doc_ref.get()
@@ -81,6 +81,10 @@ class DatabaseManager:
     
     async def set_document(self, collection, document_id, data):
         """Establecer un documento en Firestore."""
+        if not self._connected:
+            if not await self.connect():
+                return False
+
         try:
             doc_ref = self.db.collection(collection).document(document_id)
             doc_ref.set(data)
