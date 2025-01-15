@@ -1,8 +1,10 @@
 import os
-from datetime import datetime, timedelta
-import firebase_admin
+import json
 from firebase_admin import credentials, firestore
 from dotenv import load_dotenv
+import firebase_admin
+from datetime import datetime
+
 
 load_dotenv()
 
@@ -13,8 +15,11 @@ class DatabaseManager:
         if not firebase_credentials:
             raise ValueError('FIREBASE_CREDENTIALS no encontrada en variables de entorno')
         
+        # Cargar las credenciales desde el JSON de la variable de entorno
+        cred_dict = json.loads(firebase_credentials)
+        
         if not firebase_admin._apps:
-            self.cred = credentials.Certificate(firebase_credentials)
+            self.cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(self.cred)
         
         self.db = firestore.client()
