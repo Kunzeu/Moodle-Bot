@@ -5,11 +5,12 @@ from dotenv import load_dotenv
 import firebase_admin
 from datetime import datetime
 
-
+# Cargar las variables de entorno
 load_dotenv()
 
 class DatabaseManager:
     def __init__(self):
+        # Obtener las credenciales de Firebase desde la variable de entorno
         firebase_credentials = os.getenv('FIREBASE_CREDENTIALS')
         
         if not firebase_credentials:
@@ -19,6 +20,7 @@ class DatabaseManager:
         cred_dict = json.loads(firebase_credentials)
         
         if not firebase_admin._apps:
+            # Inicializar Firebase con las credenciales cargadas
             self.cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(self.cred)
         
