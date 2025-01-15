@@ -1,9 +1,22 @@
-from firebase_admin import credentials, firestore, initialize_app
+from firebase_admin import credentials, firestore, initialize_app, get_app
 import os
 from dotenv import load_dotenv
 
 class DatabaseManager:
+    _instance = None
+    _initialized = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(DatabaseManager, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self):
+        if not self._initialized:
+            self._initialized = True
+            self._initialize_firebase()
+
+    def _initialize_firebase(self):
         load_dotenv()
         
         # Obtener las credenciales individuales desde variables de entorno
@@ -37,19 +50,18 @@ class DatabaseManager:
             error_msg = "\n".join([
                 "🚫 Error: Faltan variables de entorno requeridas",
                 "Las siguientes variables no están configuradas:",
-                ", ".join(missing_fields),
-                "\nPor favor, configura estas variables en el panel de Render:",
-                "1. Ve a tu dashboard de Render",
-                "2. Selecciona tu servicio",
-                "3. Ve a 'Environment'",
-                "4. Haz clic en 'Add Environment Variable'",
-                "5. Agrega cada variable faltante con su valor correspondiente"
+                ", ".join(missing_fields)
             ])
             raise ValueError(error_msg)
             
         try:
-            self.cred = credentials.Certificate(cred_dict)
-            self.app = initialize_app(self.cred)
+            # Intentar obtener la app existente, si no existe, crear una nueva
+            try:
+                self.app = get_app()
+            except ValueError:
+                self.cred = credentials.Certificate(cred_dict)
+                self.app = initialize_app(self.cred)
+            
             self.db = firestore.client()
             print("✅ Conexión con Firebase establecida exitosamente")
         except Exception as e:
