@@ -4,9 +4,17 @@ import os
 from dotenv import load_dotenv
 import asyncio
 from flask import Flask
-
+from threading import Thread
 
 app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    port = int(os.getenv("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
 
 # Cargar variables de entorno
 load_dotenv()
@@ -24,7 +32,12 @@ from utils.database import DatabaseManager
 db_manager = DatabaseManager()
 
 # Configuración del bot
-bot = commands.Bot(command_prefix='.', intents=intents, activity=discord.Game(name="Guild Wars 2"), status=discord.Status.idle)
+bot = commands.Bot(
+    command_prefix='.',
+    intents=intents,
+    activity=discord.Game(name="Guild Wars 2"),
+    status=discord.Status.idle
+)
 
 @bot.event
 async def setup_hook():
@@ -49,9 +62,6 @@ async def load():
             await bot.load_extension(f'cogs.{filename[:-3]}')
             print(f'Loaded {filename[:-3]}')
 
-# Obtener el puerto desde las variables de entorno o asignar un predeterminado
-PORT = int(os.getenv("PORT", 8080))
-
 # Función principal para cargar el bot
 async def main():
     async with bot:
@@ -59,4 +69,9 @@ async def main():
         await bot.start(TOKEN)
 
 if __name__ == "__main__":
+    # Iniciar Flask en un thread separado
+    server_thread = Thread(target=run_flask, daemon=True)
+    server_thread.start()
+    
+    # Iniciar el bot
     asyncio.run(main())
