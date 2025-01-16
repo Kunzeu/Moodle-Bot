@@ -118,7 +118,7 @@ class CommandManager(commands.Cog):
         
         return is_admin or is_mod or member.guild_permissions.administrator
 
-    @commands.command(name='configurar_roles')
+    @commands.command(name='configurar_roles', aliases=['croles'])
     @commands.has_permissions(administrator=True)
     async def configure_roles(self, ctx, role_type: str, *, role_mentions: str):
         """Configura roles de admin/mod para el servidor"""
@@ -158,7 +158,7 @@ class CommandManager(commands.Cog):
         """Normaliza el nombre del comando o alias a minúsculas"""
         return name[1:].lower() if name.startswith('.') else name.lower()
 
-    @commands.command(name='crear')
+    @commands.command(name='crear', aliases=['cmd'])
     async def create_command(self, ctx, name: str, *, response: str):
         """Crea un nuevo comando personalizado"""
         if not self.has_permission(ctx.author):
