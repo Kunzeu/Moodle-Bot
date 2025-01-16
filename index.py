@@ -4,9 +4,18 @@ import os
 from dotenv import load_dotenv
 import asyncio
 from flask import Flask
-
+import threading
 
 app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    # Obtener el puerto desde las variables de entorno
+    port = int(os.getenv("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
 
 # Cargar variables de entorno
 load_dotenv()
@@ -49,11 +58,12 @@ async def load():
             await bot.load_extension(f'cogs.{filename[:-3]}')
             print(f'Loaded {filename[:-3]}')
 
-# Obtener el puerto desde las variables de entorno o asignar un predeterminado
-PORT = int(os.getenv("PORT", 8080))
-
 # Función principal para cargar el bot
 async def main():
+    # Iniciar Flask en un hilo separado
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.start()
+    
     async with bot:
         await load()
         await bot.start(TOKEN)
