@@ -171,9 +171,6 @@ class MagicCommand(commands.Cog):
             )
         except Exception as error:
             logging.error(f"Unexpected error in might command: {error}")
-            await interaction.followup.send(
-                content="An unexpected error occurred while calculating material prices. Please try again later."
-            )
-
+            
 async def setup(bot: commands.Bot):
     await bot.add_cog(MagicCommand(bot))    
