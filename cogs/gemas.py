@@ -7,13 +7,13 @@ class GW2Gemas(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def send_response(self, interaction: discord.Interaction, content):
+    async def send_response(self, interaction: discord.Interaction, **kwargs):
         """Método auxiliar para enviar respuestas de manera segura"""
         try:
             if not interaction.response.is_done():
-                await interaction.response.send_message(content)
+                await interaction.response.send_message(**kwargs)
             else:
-                await interaction.followup.send(content)
+                await interaction.followup.send(**kwargs)
         except Exception as e:
             print(f"Error al enviar respuesta: {e}")
 
@@ -27,7 +27,7 @@ class GW2Gemas(commands.Cog):
         """
         try:
             if cantidad <= 0:
-                await self.send_response(interaction, "La cantidad debe ser mayor que 0.")
+                await self.send_response(interaction, content="La cantidad debe ser mayor que 0.")
                 return
 
             # Para comprar gemas necesitamos consultar cuánto oro cuesta la cantidad de gemas
@@ -76,17 +76,17 @@ class GW2Gemas(commands.Cog):
 
             # Añadimos el enlace
             embed.add_field(
-                name="Comprar GW2",
-                value="[Comprar Guild Wars 2](https://instant-gaming.com/es/busquedas/?q=Guild%20Wars%202&igr=Vortus)",
+                name="Comprar Gemas mas baratas",
+                value="[AQUI](https://instant-gaming.com/es/busquedas/?q=Guild%20Wars%202&igr=Vortus)",
                 inline=False
             )
 
             # Enviar respuesta
-            await self.send_response(interaction, embed=embed)
+            await interaction.response.send_message(embed=embed)
 
         except Exception as e:
             error_message = f"Error: {str(e)}"
-            await self.send_response(interaction, error_message)
+            await interaction.response.send_message(content=error_message)
 
 async def setup(bot):
     await bot.add_cog(GW2Gemas(bot))
