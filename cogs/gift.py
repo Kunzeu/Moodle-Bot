@@ -41,10 +41,6 @@ class GiftPrices(commands.Cog):
             price_string = calculate_coins(price)
             embed.add_field(name=item_name, value=price_string, inline=False)
 
-        # Agregar los enlaces al embed
-        embed.add_field(name="\u200b", value="[Link to GOJM](https://www.patreon.com/posts/111360002)", inline=True)
-        embed.add_field(name="\u200b", value="[Link to GOM](https://www.patreon.com/posts/111359956)", inline=True)
-
         # Enviar el embed como respuesta al comando
         await interaction.response.send_message(embed=embed)
 
